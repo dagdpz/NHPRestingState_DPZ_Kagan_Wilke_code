@@ -38,9 +38,7 @@ ephys_run_numbers = ephys_data.epocs.RunN.data;
 
 if ~(debug_on)
     % Recording duration of the current ephys block (seconds).
-    block_duration_sec = datevec(datenum(ephys_data.info.duration));
-    block_duration_sec = block_duration_sec(4)*3600 + block_duration_sec(5)*60 + block_duration_sec(6);
-    ephys_trial_onsets_with_block_end = [ephys_data.epocs.Tnum.onset; block_duration_sec];
+    ephys_trial_onsets_with_block = [ephys_data.epocs.Tnum.onset];
 
 else % Optional handling for known historical acquisition anomalies:
     
@@ -52,9 +50,7 @@ else % Optional handling for known historical acquisition anomalies:
         Session(1)  = Session(2);
     end
     % Recording duration of the current ephys block (seconds).
-    block_duration_sec = datevec(datenum(ephys_data.info.duration));
-    block_duration_sec = block_duration_sec(4)*3600 + block_duration_sec(5)*60 + block_duration_sec(6);
-    ephys_trial_onsets_with_block_end = [ephys_data.epocs.Tnum.onset; block_duration_sec];
+    ephys_trial_onsets_with_block = [ephys_data.epocs.Tnum.onset];
     
     
     % If multiple initial trial counters are invalid, reject this block.
@@ -72,7 +68,7 @@ else % Optional handling for known historical acquisition anomalies:
         ephys_trial_numbers(1) = [];
         ephys_run_numbers(1) = [];
         Session(1)      =[];
-        ephys_trial_onsets_with_block_end(1) = [];
+        ephys_trial_onsets_with_block(1) = [];
         disp('Additional trial in the beginning removed');
     end
 end
@@ -86,7 +82,7 @@ ephys_state_values = ephys_data.epocs.SVal.data;
 % This can occur when an ephys block spans multiple behavioral runs.
 if any(ephys_run_numbers~=behavior_run_number)
     ephys_trial_numbers(ephys_run_numbers~=behavior_run_number) = [];
-    ephys_trial_onsets_with_block_end(ephys_run_numbers~=behavior_run_number) = [];
+    ephys_trial_onsets_with_block(ephys_run_numbers~=behavior_run_number) = [];
     disp(['Warning: multiple runs in one block! Run onsets at TDT trials: ' mat2str(find(ephys_trial_numbers==1))]);
 end
 
@@ -99,7 +95,7 @@ for t=1:numel(behavior_trials)
     % Align to state 2 (not state 1), because state 1 is used for trial
     % initiation/signaling and has different onset timing properties.
     behavior_state2_time = behavior_trials(t).tSample_from_time_start(find(behavior_trials(t).state==2,1));
-    ephys_state2_onset = ephys_state_onsets(find(ephys_state_onsets>ephys_trial_onsets_with_block_end(ephys_trial_numbers==t) & ephys_state_values==2,1));
+    ephys_state2_onset = ephys_state_onsets(find(ephys_state_onsets>ephys_trial_onsets_with_block(ephys_trial_numbers==t) & ephys_state_values==2,1));
     behavior_timestamps_in_ephys_time = behavior_trials(t).tSample_from_time_start - behavior_state2_time + ephys_state2_onset;
     continuous_timestamps=[continuous_timestamps; behavior_timestamps_in_ephys_time];
     Trial_timestamps=[Trial_timestamps; ephys_state2_onset];
