@@ -44,7 +44,7 @@ if ~(debug_on)
 
 else % Optional handling for known historical acquisition anomalies:
     
-    Session     =data.epocs.Sess.data;
+    Session     =ephys_data.epocs.Sess.data;
     % Correct trial/run counters if the first trial was initialized incorrectly.
     if numel(ephys_trial_numbers)>1
         ephys_trial_numbers(1) = ephys_trial_numbers(2)-1;
