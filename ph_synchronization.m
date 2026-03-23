@@ -43,7 +43,8 @@ if ~(debug_on)
     ephys_trial_onsets_with_block_end = [ephys_data.epocs.Tnum.onset; block_duration_sec];
 
 else % Optional handling for known historical acquisition anomalies:
-
+    
+    Session     =data.epocs.Sess.data;
     % Correct trial/run counters if the first trial was initialized incorrectly.
     if numel(ephys_trial_numbers)>1
         ephys_trial_numbers(1) = ephys_trial_numbers(2)-1;
@@ -59,7 +60,7 @@ else % Optional handling for known historical acquisition anomalies:
     % If multiple initial trial counters are invalid, reject this block.
     % Example known case: Bac_20210826.
     if numel(ephys_trial_numbers)>1 && (any(ephys_trial_numbers<1) || any( Session<100000 | Session>800000) || any(Session~=Session(end)))
-        disp(['Corrupted (probably not existing) trials of ' block ' removed']);
+        disp('Corrupted (probably not existing) trials removed');
         continuous_timestamps=[];
         Trial_timestamps=[];
         continuous_data=[];
@@ -72,7 +73,7 @@ else % Optional handling for known historical acquisition anomalies:
         ephys_run_numbers(1) = [];
         Session(1)      =[];
         ephys_trial_onsets_with_block_end(1) = [];
-        disp(['Additional trial in the beginning of ' block ' removed']);
+        disp('Additional trial in the beginning removed');
     end
 end
 
@@ -84,6 +85,7 @@ ephys_state_values = ephys_data.epocs.SVal.data;
 % Remove ephys trial onsets that do not correspond to the behavioral run.
 % This can occur when an ephys block spans multiple behavioral runs.
 if any(ephys_run_numbers~=behavior_run_number)
+    ephys_trial_numbers(ephys_run_numbers~=behavior_run_number) = [];
     ephys_trial_onsets_with_block_end(ephys_run_numbers~=behavior_run_number) = [];
     disp(['Warning: multiple runs in one block! Run onsets at TDT trials: ' mat2str(find(ephys_trial_numbers==1))]);
 end
