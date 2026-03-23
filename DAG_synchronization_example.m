@@ -5,8 +5,8 @@
 % - behavior_file ends with "_NN.mat" where NN is run number.
 % - TDT epoc stores SVal/Tnum/RunN exist in the selected block.
 
-behavior_file = 'Y:\Data\Bacchus\20200619\Bac2020-06-19_02.mat';
-ephys_folder = 'Y:\Data\TDTtanks\Bacchus_phys\20200619\Block-1';
+behavior_file = 'D:\g-node\NHPRestingState_DPZ_Kagan_Wilke\Bac\20210714\Block-2\Bac2021-07-14_04.mat';
+ephys_folder = 'D:\g-node\NHPRestingState_DPZ_Kagan_Wilke\Bac\20210714\Block-2';
 
 %% Read in ephys data
 % TDTbin2mat_working is a DAG-specific variant of the TDT readout function (previous version):
