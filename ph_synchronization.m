@@ -1,4 +1,4 @@
-function [continuous_timestamps, continuous_data, Trial_timestamps]=ph_synchronization(ephys_data,behavioral_data)
+function [continuous_timestamps, continuous_data, Trial_timestamps]=ph_synchronization(ephys_data,behavioral_data,debug_on)
 %PH_SYNCHRONIZATION Align behavioral timing to ephys block time.
 %   This function maps timing from behavioral trial structure to timestamps
 %   relative to the start of a given TDT ephys block.
@@ -23,7 +23,6 @@ function [continuous_timestamps, continuous_data, Trial_timestamps]=ph_synchroni
 %                         behavioral parameters across trials
 % Trial_timestamps      - trial-wise timestamps (state 2 alignment points)
 
-debug_on=0; % Kept for historical bug handling in legacy recordings.
 
 if ~isfield(ephys_data.epocs,'Tnum')
     disp('No trials associated to this block')
@@ -45,6 +44,7 @@ else % Optional handling for known historical acquisition anomalies:
     Session     =ephys_data.epocs.Sess.data;
     % Correct trial/run counters if the first trial was initialized incorrectly.
     if numel(ephys_trial_numbers)>1
+        disp('First incorrectly initialized trial corrected');
         ephys_trial_numbers(1) = ephys_trial_numbers(2)-1;
         ephys_run_numbers(1) = ephys_run_numbers(2);
         Session(1)  = Session(2);

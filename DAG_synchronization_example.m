@@ -21,7 +21,13 @@ behavioral_data=load(behavior_file,'trial'); % load the trial structure from the
 behavioral_data.run=str2num(behavior_file(end-5:end-4)); % storing run number in the data to ensure avoiding certain mismatch
 
 % synchronize the data
-[continuous_timestamps, continuous_data, Trial_timestamps] = ph_synchronization(ephys_data,behavioral_data);
+try
+    % try to run without debug mode (last input) to catch exceptions
+[continuous_timestamps, continuous_data, Trial_timestamps] = ph_synchronization(ephys_data,behavioral_data,0);
+catch err
+    disp([ephys_folder ' needed debug'])
+[continuous_timestamps, continuous_data, Trial_timestamps] = ph_synchronization(ephys_data,behavioral_data,1);
+end
 %
 % Output format (from ph_synchronization):
 % - continuous_timestamps: [N x 1 double], seconds from ephys block start,
