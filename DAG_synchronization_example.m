@@ -1,10 +1,12 @@
 % DAG_SYNCHRONIZATION_EXAMPLE
+% Example call: DAG_synchronization_example;
 % Minimal example for aligning one behavioral run to one TDT ephys block.
 %
 % Assumptions:
 % - behavior_file ends with "_NN.mat" where NN is run number.
 % - TDT epoc stores SVal/Tnum/RunN exist in the selected block.
 
+% fill in the path to the behavioral file and the ephys folder
 behavior_file = 'D:\g-node\NHPRestingState_DPZ_Kagan_Wilke\Bac\20210714\Block-2\Bac2021-07-14_04.mat';
 ephys_folder = 'D:\g-node\NHPRestingState_DPZ_Kagan_Wilke\Bac\20210714\Block-2';
 
