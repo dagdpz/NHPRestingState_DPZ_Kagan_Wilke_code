@@ -81,9 +81,11 @@ ephys_state_values = ephys_data.epocs.SVal.data;
 % Remove ephys trial onsets that do not correspond to the behavioral run.
 % This can occur when an ephys block spans multiple behavioral runs.
 if any(ephys_run_numbers~=behavior_run_number)
+    disp(['Warning: multiple runs in one block! Run onsets at TDT trials: ' mat2str(find(ephys_trial_numbers==1))]);
     ephys_trial_numbers(ephys_run_numbers~=behavior_run_number) = [];
     ephys_trial_onsets(ephys_run_numbers~=behavior_run_number) = [];
-    disp(['Warning: multiple runs in one block! Run onsets at TDT trials: ' mat2str(find(ephys_trial_numbers==1))]);
+    disp(['Retained TDT trials corresponding to the requested behavioral run: ' mat2str(ephys_trial_numbers)]);
+    
 end
 
 
