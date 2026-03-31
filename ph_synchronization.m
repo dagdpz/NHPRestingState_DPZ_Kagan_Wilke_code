@@ -1,4 +1,4 @@
-function [continuous_timestamps, continuous_data, Trial_timestamps]=ph_synchronization(ephys_data,behavioral_data,debug_on)
+function [continuous_timestamps, continuous_data, Trial_timestamps, report]=ph_synchronization(ephys_data,behavioral_data,debug_on)
 %PH_SYNCHRONIZATION Align behavioral timing to ephys block time.
 %   This function maps timing from behavioral trial structure to timestamps
 %   relative to the start of a given TDT ephys block.
@@ -22,45 +22,63 @@ function [continuous_timestamps, continuous_data, Trial_timestamps]=ph_synchroni
 % continuous_data       - struct containing concatenated continuous
 %                         behavioral parameters across trials
 % Trial_timestamps      - trial-wise timestamps (state 2 alignment points)
+% report                - string array with all displayed messages in order
 
+if nargin < 3 || isempty(debug_on)
+    debug_on = true;
+end
+
+% Initialize outputs for safe early returns.
+continuous_timestamps = [];
+Trial_timestamps = [];
+continuous_data = [];
+
+% Collect all displayed messages for optional downstream logging/QA.
+report = '';
+
+% Early input sanity checks: behavioral/ephys trial and block identifiers
+% must be available and non-empty.
+if ~isfield(behavioral_data,'trial') || isempty(behavioral_data.trial)
+    log_message('Behavioral trial data is missing or empty.');
+    return
+end
+if ~isfield(behavioral_data,'run') || isempty(behavioral_data.run)
+    log_message('Behavioral run/block identifier is missing or empty.');
+    return
+end
+if ~isfield(ephys_data,'epocs') || ~isfield(ephys_data.epocs,'Tnum') || ~isfield(ephys_data.epocs.Tnum,'data') || isempty(ephys_data.epocs.Tnum.data)
+    log_message('Ephys trial numbers (Tnum) are missing or empty.');
+    return
+end
+if ~isfield(ephys_data,'epocs') || ~isfield(ephys_data.epocs,'RunN') || ~isfield(ephys_data.epocs.RunN,'data') || isempty(ephys_data.epocs.RunN.data)
+    log_message('Ephys run/block identifiers (RunN) are missing or empty.');
+    return
+end
 
 if ~isfield(ephys_data.epocs,'Tnum')
-    disp('No trials associated to this block')
+    log_message('No trials associated to this block');
     return 
 end
 
 % Extract behavioral and ephys metadata used for alignment
 behavior_trials = behavioral_data.trial;
+behavior_trial_numbers = [behavior_trials.n];
 behavior_run_number = behavioral_data.run;
 ephys_trial_numbers = ephys_data.epocs.Tnum.data;
 ephys_run_numbers = ephys_data.epocs.RunN.data;
+ephys_trial_onsets = [ephys_data.epocs.Tnum.onset];
 
-if ~(debug_on)
-    % Recording duration of the current ephys block (seconds).
-    ephys_trial_onsets = [ephys_data.epocs.Tnum.onset];
-
-else % Optional handling for known historical acquisition anomalies:
+if debug_on 
+    % Optional handling for known historical acquisition anomalies:
     
     Session     =ephys_data.epocs.Sess.data;
     % Correct trial/run counters if the first trial was initialized incorrectly.
-    if numel(ephys_trial_numbers)>1
-        disp('First incorrectly initialized trial corrected');
+    if numel(ephys_trial_numbers)>1 && ephys_trial_numbers(1)~=1
+        log_message('First incorrectly initialized trial corrected');
         ephys_trial_numbers(1) = ephys_trial_numbers(2)-1;
         ephys_run_numbers(1) = ephys_run_numbers(2);
+        ephys_trial_onsets(1) = 0;
         Session(1)  = Session(2);
-    end
-    % Recording duration of the current ephys block (seconds).
-    ephys_trial_onsets = [ephys_data.epocs.Tnum.onset];
-    
-    
-    % If multiple initial trial counters are invalid, reject this block.
-    % Example known case: Bac_20210826.
-    if numel(ephys_trial_numbers)>1 && (any(ephys_trial_numbers<1) || any( Session<100000 | Session>800000) || any(Session~=Session(end)))
-        disp('Corrupted (probably not existing) trials removed');
-        continuous_timestamps=[];
-        Trial_timestamps=[];
-        continuous_data=[];
-        return;
     end
     
     % Remove one spurious initial trial in a known legacy recording issue (Linus_20150703, Block-5).
@@ -69,31 +87,49 @@ else % Optional handling for known historical acquisition anomalies:
         ephys_run_numbers(1) = [];
         Session(1)      =[];
         ephys_trial_onsets(1) = [];
-        disp('Additional trial in the beginning removed');
+        log_message('Additional trial in the beginning removed');
     end
-end
-
-
-ephys_state_onsets = ephys_data.epocs.SVal.onset;
-ephys_state_values = ephys_data.epocs.SVal.data;
-
-
-% Remove ephys trial onsets that do not correspond to the behavioral run.
-% This can occur when an ephys block spans multiple behavioral runs.
-if any(ephys_run_numbers~=behavior_run_number)
-    disp(['Warning: multiple runs in one block! Run onsets at TDT trials: ' mat2str(find(ephys_trial_numbers==1))]);
-    ephys_trial_numbers(ephys_run_numbers~=behavior_run_number) = [];
-    ephys_trial_onsets(ephys_run_numbers~=behavior_run_number) = [];
-    disp(['Retained TDT trials corresponding to the requested behavioral run: ' mat2str(ephys_trial_numbers)]);
+    
+    % If multiple initial trial counters are invalid, reject this block.
+    % Example known case: Bac_20210826.
+    if numel(ephys_trial_numbers)>1 && (any(ephys_trial_numbers<1) || any( Session<100000 | Session>800000) || any(Session~=Session(end)))
+        log_message('Synchronization impossible due to corrupted ephys state information - entire run invalid');
+        continuous_timestamps=[];
+        Trial_timestamps=[];
+        continuous_data=[];
+        return;
+    end
+        
+    % Remove ephys trial onsets that do not correspond to the behavioral run.
+    % This can occur when an ephys block spans multiple behavioral runs.
+    if any(ephys_run_numbers~=behavior_run_number)
+        log_message(['Warning: multiple runs in one block! Run onsets at TDT trials: ' mat2str(find(ephys_trial_numbers==1))]);
+        matching_trials=ephys_run_numbers==behavior_run_number;
+        ephys_trial_numbers = ephys_trial_numbers(matching_trials);
+        ephys_trial_onsets = ephys_trial_onsets(matching_trials);
+        log_message(['Retained TDT trials corresponding to the requested behavioral run: ' mat2str(find(matching_trials))]);
+    end
+    
+    % Keep only behavioral trials that are in the ephys data as well - rare case
+    % of a last behavioral trial was initiated, but not streamed to ephys
+    if numel(behavior_trial_numbers)>numel(ephys_trial_numbers)
+        overlapping_trials=arrayfun(@(x) any(ephys_trial_numbers==x),behavior_trial_numbers);
+        behavior_trial_numbers = behavior_trial_numbers(overlapping_trials);
+        log_message(['Too many behavioral trials: ' mat2str(numel(overlapping_trials) - sum(overlapping_trials)) ' behavioral trial(s) removed']);
+    end
     
 end
 
 
+
 % Compute sample-wise and trial-wise timestamps in one pass
 % (same state-2 alignment anchor used for both outputs).
+ephys_state_onsets = ephys_data.epocs.SVal.onset;
+ephys_state_values = ephys_data.epocs.SVal.data;
+
 continuous_timestamps=[];
 Trial_timestamps=[];
-for t=1:numel(behavior_trials)
+for t=behavior_trial_numbers
     % Align to state 2 (not state 1), because state 1 is used for trial
     % initiation/signaling and has different onset timing properties.
     behavior_state2_time = behavior_trials(t).tSample_from_time_start(find(behavior_trials(t).state==2,1));
@@ -109,4 +145,10 @@ for f=1:numel(fields_to_concat)
     current_field=fields_to_concat{f};
     continuous_data.(current_field)=vertcat(behavior_trials.(current_field));
 end
+
+    function log_message(msg)
+        % Keep legacy console output behavior while storing a report copy.
+        disp(msg);
+        report = [report '|' msg];
+    end
 end
