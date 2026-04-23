@@ -54,6 +54,12 @@ if ~isfield(ephys_data,'epocs') || ~isfield(ephys_data.epocs,'RunN') || ~isfield
     log_message('Ephys run/block identifiers (RunN) are missing or empty.');
     return
 end
+if ~isfield(ephys_data,'epocs') || ~isfield(ephys_data.epocs,'SVal') || ...
+        ~isfield(ephys_data.epocs.SVal,'data') || isempty(ephys_data.epocs.SVal.data) || ...
+        ~isfield(ephys_data.epocs.SVal,'onset') || isempty(ephys_data.epocs.SVal.onset)
+    log_message('Ephys state stream (SVal) is missing or empty.');
+    return
+end
 
 if ~isfield(ephys_data.epocs,'Tnum')
     log_message('No trials associated to this block');
@@ -69,11 +75,15 @@ ephys_run_numbers = ephys_data.epocs.RunN.data;
 ephys_trial_onsets = [ephys_data.epocs.Tnum.onset];
 
 if debug_on 
-    % Optional handling for known historical acquisition anomalies:
-    
-    Session     =ephys_data.epocs.Sess.data;
+    % handling of known historical acquisition anomalies:
+    if ~isfield(ephys_data.epocs, 'Sess') || ~isfield(ephys_data.epocs.Sess, 'data') || isempty(ephys_data.epocs.Sess.data)
+        log_message('Ephys session stream (Sess) is missing or empty; skipping Sess-specific debug checks.');
+        Session = [];
+    else
+        Session = ephys_data.epocs.Sess.data;
+    end
     % Correct trial/run counters if the first trial was initialized incorrectly.
-    if numel(ephys_trial_numbers)>1 && ephys_trial_numbers(1)~=1
+    if ~isempty(Session) && numel(ephys_trial_numbers)>1 && ephys_trial_numbers(1)~=1
         log_message('First incorrectly initialized trial corrected');
         ephys_trial_numbers(1) = ephys_trial_numbers(2)-1;
         ephys_run_numbers(1) = ephys_run_numbers(2);
@@ -82,7 +92,7 @@ if debug_on
     end
     
     % Remove one spurious initial trial in a known legacy recording issue (Linus_20150703, Block-5).
-    if numel(ephys_trial_numbers)>1 && ephys_trial_numbers(2)==1
+    if ~isempty(Session) && numel(ephys_trial_numbers)>1 && ephys_trial_numbers(2)==1
         ephys_trial_numbers(1) = [];
         ephys_run_numbers(1) = [];
         Session(1)      =[];
@@ -92,7 +102,7 @@ if debug_on
     
     % If multiple initial trial counters are invalid, reject this block.
     % Example known case: Bac_20210826.
-    if numel(ephys_trial_numbers)>1 && (any(ephys_trial_numbers<1) || any( Session<100000 | Session>800000) || any(Session~=Session(end)))
+    if ~isempty(Session) && numel(ephys_trial_numbers)>1 && (any(ephys_trial_numbers<1) || any( Session<100000 | Session>800000) || any(Session~=Session(end)))
         log_message('Synchronization impossible due to corrupted ephys state information - entire run invalid');
         continuous_timestamps=[];
         Trial_timestamps=[];
@@ -129,26 +139,55 @@ ephys_state_values = ephys_data.epocs.SVal.data;
 
 continuous_timestamps=[];
 Trial_timestamps=[];
+aligned_trial_indices = [];
 for t=behavior_trial_numbers
     % Align to state 2 (not state 1), because state 1 is used for trial
     % initiation/signaling and has different onset timing properties.
-    behavior_state2_time = behavior_trials(t).tSample_from_time_start(find(behavior_trials(t).state==2,1));
-    ephys_state2_onset = ephys_state_onsets(find(ephys_state_onsets>ephys_trial_onsets(ephys_trial_numbers==t) & ephys_state_values==2,1));
-    behavior_timestamps_in_ephys_time = behavior_trials(t).tSample_from_time_start - behavior_state2_time + ephys_state2_onset;
+    trial_idx = find(behavior_trial_numbers==t, 1, 'first');
+    if isempty(trial_idx)
+        log_message(['Behavioral trial index not found for trial id: ' num2str(t)]);
+        continue;
+    end
+    
+    behavior_state2_idx = find(behavior_trials(trial_idx).state==2,1,'first');
+    if isempty(behavior_state2_idx)
+        log_message(['No behavioral state==2 found for trial id: ' num2str(t)]);
+        continue;
+    end
+    behavior_state2_time = behavior_trials(trial_idx).tSample_from_time_start(behavior_state2_idx);
+    
+    trial_onset_idx = find(ephys_trial_numbers==t, 1, 'first');
+    if isempty(trial_onset_idx)
+        log_message(['No ephys trial onset found for trial id: ' num2str(t)]);
+        continue;
+    end
+    ephys_state2_idx = find(ephys_state_onsets>ephys_trial_onsets(trial_onset_idx) & ephys_state_values==2,1,'first');
+    if isempty(ephys_state2_idx)
+        log_message(['No ephys state==2 onset found after trial onset for trial id: ' num2str(t)]);
+        continue;
+    end
+    ephys_state2_onset = ephys_state_onsets(ephys_state2_idx);
+    
+    behavior_timestamps_in_ephys_time = behavior_trials(trial_idx).tSample_from_time_start - behavior_state2_time + ephys_state2_onset;
     continuous_timestamps=[continuous_timestamps; behavior_timestamps_in_ephys_time];
     Trial_timestamps=[Trial_timestamps; ephys_state2_onset];
+    aligned_trial_indices(end+1,1) = trial_idx;
 end
 
 % Concatenate per-trial continuous behavioral streams
 fields_to_concat={'state','x_eye', 'y_eye', 'x_hnd', 'y_hnd', 'sen_L', 'sen_R', 'jaw', 'body' };
 for f=1:numel(fields_to_concat)
     current_field=fields_to_concat{f};
-    continuous_data.(current_field)=vertcat(behavior_trials.(current_field));
+    if isempty(aligned_trial_indices)
+        continuous_data.(current_field) = [];
+    else
+        continuous_data.(current_field)=vertcat(behavior_trials(aligned_trial_indices).(current_field));
+    end
 end
 
     function log_message(msg)
         % Keep legacy console output behavior while storing a report copy.
         disp(msg);
-        report = [report '|' msg];
+        report = [report ' | ' msg];
     end
 end

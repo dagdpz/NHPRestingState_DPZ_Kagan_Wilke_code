@@ -35,7 +35,7 @@ Per behavioral trial `t`:
 
 ## Outputs
 
-`[continuous_timestamps, continuous_data, Trial_timestamps]`
+`[continuous_timestamps, continuous_data, Trial_timestamps, report]`
 
 - `continuous_timestamps`
   - concatenated sample-wise timestamps in ephys block time (seconds).
@@ -44,6 +44,9 @@ Per behavioral trial `t`:
     `state`, `x_eye`, `y_eye`, `x_hnd`, `y_hnd`, `sen_L`, `sen_R`, `jaw`, `body`.
 - `Trial_timestamps`
   - one timestamp per trial, using the state-2 ephys anchor.
+- `report`
+  - string array containing informational and warning messages emitted during
+    synchronization (useful for QA and batch logs).
 
 ## Run Filtering Behavior
 
@@ -60,4 +63,19 @@ Minimum required fields:
 - `ephys_data.epocs.RunN`
 - `ephys_data.epocs.SVal`
 
+Optional input:
+
+- `debug_on` (logical)
+  - enables/disables legacy anomaly handling branch.
+
 See `docs/known-limitations.md` for current edge cases and caveats.
+
+## Batch Validation Across All Blocks
+
+`DAG_synchronization_all_blocks_example.m` provides a dataset-wide wrapper that:
+
+1. Scans `<subject_root>/<YYYYMMDD>/Block-*`
+2. Locates matching behavioral `.mat` files per block
+3. Runs `ph_synchronization` block-by-block
+4. Continues on failures and writes a consolidated
+   `synchronization_report.txt` in the subject root folder

@@ -17,23 +17,45 @@ functional refactor.
 
 ### Current Risks
 
-- Early return path can occur before outputs are explicitly initialized.
-- Required fields besides `Tnum` are used without explicit guards in code.
 - The optional `debug_on` branch relies on legacy `Sess` logic and may not be
-  robust across all datasets.
-- Empty matches (missing state-2 in behavior or ephys) are not explicitly
-  handled with controlled fallback behavior.
+  robust across all datasets and may skip some legacy corrections when `Sess`
+  is unavailable.
+- If many trials are skipped due to missing anchors, downstream analyses should
+  explicitly verify expected trial coverage in `Trial_timestamps` and inspect
+  synchronization messages in `report`.
 
 ## `DAG_synchronization_example.m`
 
 ### Assumptions
 
 - Run number parsing uses filename suffix indexing (`end-5:end-4`), which
-  assumes a fixed `..._NN.mat` naming pattern.
+  assumes a fixed `..._NN.mat` naming pattern with exactly two run digits.
 
 ### Risk
 
 - If filename pattern changes, run extraction can fail or parse incorrectly.
+
+## `DAG_synchronization_all_blocks_example.m`
+
+### Assumptions
+
+- Subject folder contains day folders named exactly `YYYYMMDD`.
+- Each block folder contains at least one behavioral file matching:
+  - `<Subject><YYYY-MM-DD>_*.mat`
+- Run number is parsed from trailing filename token:
+  - `..._<Run>.mat`
+
+### Current Behavior Notes
+
+- The function continues across blocks when one block fails and records failure
+  text in `synchronization_report.txt`.
+- If multiple behavioral MAT files match one block, alphabetical first is used
+  and a warning is logged.
+
+### Risk
+
+- Multiple-match selection is deterministic but may not be semantically correct
+  without stricter run/block metadata in filenames.
 
 ## `nhprs_kw_copy_blocks_runs.m`
 

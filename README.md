@@ -19,6 +19,9 @@ This repository currently contains two operational components:
   - Core alignment function from behavioral time to ephys block time.
 - `DAG_synchronization_example.m`
   - Minimal example script for one run/block synchronization call.
+- `DAG_synchronization_all_blocks_example.m`
+  - Batch synchronization checker across all day folders and `Block-*` folders
+    under one subject folder, with per-block report output.
 - `TDTbin2mat_working.m`
   - Local customized fork of TDT readout function used by this project.
 
@@ -54,12 +57,25 @@ nhprs_kw_copy_blocks_runs('', '', '', 'Mag', SesRunBlo, 'dPul_l', true);
 ephys_data = TDTbin2mat_working(ephys_folder, 'EXCLUSIVELYREAD', {'SVal','Tnum','RunN','Sess'});
 behavioral_data = load(behavior_file, 'trial');
 behavioral_data.run = str2num(behavior_file(end-5:end-4));
-[continuous_timestamps, continuous_data, Trial_timestamps] = ph_synchronization(ephys_data, behavioral_data);
+[continuous_timestamps, continuous_data, Trial_timestamps, report] = ph_synchronization(ephys_data, behavioral_data);
 ```
+
+### 3) Synchronize all days/blocks for one subject and generate report
+
+```matlab
+[results, report] = DAG_synchronization_all_blocks_example('D:\...\Bac');
+```
+
+This scans all `YYYYMMDD/Block-*` folders under the subject root, attempts
+synchronization per block, and writes:
+
+- `<subject_root>/synchronization_report.txt`
 
 ## Important Assumptions
 
 - Behavioral filename encodes run number as `..._NN.mat`.
+- Current example parses run number via fixed suffix indexing
+  (`end-5:end-4`), which assumes exactly two run digits.
 - Session identifier is interpreted as `YYYYMMDD`.
 - Synchronization anchor is **state 2** in behavior and `SVal==2` in ephys.
 - TDT epoc stores required for sync: `Tnum`, `RunN`, `SVal`.

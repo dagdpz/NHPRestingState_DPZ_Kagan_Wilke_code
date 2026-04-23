@@ -51,10 +51,25 @@ nhprs_kw_copy_blocks_runs(block_path, run_path, data_path, Mon, SesRunBlo, targe
 - `dry_run = true` prints intended actions only.
 - `dry_run = false` performs actual copy.
 
-### Step 3: Validate synchronization on representative runs
+### Step 3: Validate synchronization
+
+For a quick single run/block check:
 
 Use `DAG_synchronization_example.m` and `ph_synchronization.m` to verify that
 aligned timestamps and trial anchors are plausible.
+
+For full subject-level validation across all days and blocks:
+
+```matlab
+[results, report] = DAG_synchronization_all_blocks_example(subject_root_folder);
+```
+
+This writes a text report to:
+
+`<subject_root_folder>/synchronization_report.txt`
+
+The function continues across blocks even if one block fails, and records
+block-level failures in the report output.
 
 ## Logging
 

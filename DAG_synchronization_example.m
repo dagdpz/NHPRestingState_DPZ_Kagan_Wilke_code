@@ -25,10 +25,10 @@ behavioral_data.run=str2num(behavior_file(end-5:end-4)); % storing run number in
 % synchronize the data
 try
     % try to run without debug mode (last input) to catch exceptions
-[continuous_timestamps, continuous_data, Trial_timestamps] = ph_synchronization(ephys_data,behavioral_data,0);
+[continuous_timestamps, continuous_data, Trial_timestamps,report] = ph_synchronization(ephys_data,behavioral_data,0);
 catch err
     disp([ephys_folder ' needed debug'])
-[continuous_timestamps, continuous_data, Trial_timestamps] = ph_synchronization(ephys_data,behavioral_data,1);
+[continuous_timestamps, continuous_data, Trial_timestamps,report] = ph_synchronization(ephys_data,behavioral_data,1);
 end
 %
 % Output format (from ph_synchronization):
@@ -37,3 +37,4 @@ end
 % - continuous_data: struct with concatenated fields:
 %   state, x_eye, y_eye, x_hnd, y_hnd, sen_L, sen_R, jaw, body.
 % - Trial_timestamps: [T x 1 double], one timestamp per trial (state 2 anchor).
+% - report: string array with all displayed messages in order.

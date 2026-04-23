@@ -118,26 +118,34 @@ for d = 1:numel(day_dirs)
             warning('%s', msg);
         end
         
-        ephys_data = TDTbin2mat_working(block_path, 'EXCLUSIVELYREAD', {'SVal','Tnum','RunN','Sess'});
-        behavioral_data = load(behavior_file, 'trial');
-        
-        run_number = parse_run_number(mat_candidates(1).name);
-        if isnan(run_number)
-            msg = sprintf('[%s/%s] Could not parse run number from file: %s', day_token, block_name, mat_candidates(1).name);
+        try
+            ephys_data = TDTbin2mat_working(block_path, 'EXCLUSIVELYREAD', {'SVal','Tnum','RunN','Sess'});
+            behavioral_data = load(behavior_file, 'trial');
+            
+            run_number = parse_run_number(mat_candidates(1).name);
+            if isnan(run_number)
+                msg = sprintf('[%s/%s] Could not parse run number from file: %s', day_token, block_name, mat_candidates(1).name);
+                report_entry.messages = append_report(report_entry.messages, msg);
+                warning('%s', msg);
+            elseif ~isfield(behavioral_data, 'trial') || isempty(behavioral_data.trial)
+                msg = sprintf('[%s/%s] Behavioral MAT file missing ''trial'' variable: %s', day_token, block_name, mat_candidates(1).name);
+                report_entry.messages = append_report(report_entry.messages, msg);
+                warning('%s', msg);
+            else
+                behavioral_data.run = run_number;
+                
+                [continuous_timestamps, continuous_data, Trial_timestamps, report] = ph_synchronization(ephys_data, behavioral_data);
+                
+                result_entry.continuous_timestamps = continuous_timestamps;
+                result_entry.continuous_data = continuous_data;
+                result_entry.Trial_timestamps = Trial_timestamps;
+                report_entry.messages = append_report(report_entry.messages, report);
+            end
+        catch ME
+            msg = sprintf('[%s/%s] Synchronization failed: %s', day_token, block_name, ME.message);
             report_entry.messages = append_report(report_entry.messages, msg);
             warning('%s', msg);
-            synchronization_results(end+1) = result_entry; 
-            synchronization_report(end+1) = report_entry; 
-            continue;
         end
-        behavioral_data.run = run_number;
-        
-        [continuous_timestamps, continuous_data, Trial_timestamps, report] = ph_synchronization(ephys_data, behavioral_data);
-        
-        result_entry.continuous_timestamps = continuous_timestamps;
-        result_entry.continuous_data = continuous_data;
-        result_entry.Trial_timestamps = Trial_timestamps;
-        report_entry.messages = [report_entry.messages; report];
         
         synchronization_results(end+1) = result_entry; 
         synchronization_report(end+1) = report_entry; 
@@ -177,8 +185,14 @@ end
 end
 
 function report = append_report(report, msg)
-%report(end+1,1) = string(msg);
-report = [report '|' msg];
+if isempty(msg)
+    return;
+end
+if isempty(report)
+    report = msg;
+else
+    report = [report ' | ' msg];
+end
 end
 
 function tf = has_failure(report_entry)
@@ -187,7 +201,7 @@ if isempty(report_entry.messages)
     return;
 end
 report_text = lower(strjoin(cellstr(report_entry.messages), ' '));
-failure_markers = {'corrupted', 'failed', 'no behavioral mat file', 'no block-* folders found', 'could not parse run number'};
+failure_markers = {'corrupted', 'failed', 'no behavioral mat file', 'no block-* folders found', 'could not parse run number', 'missing ''trial'' variable'};
 for f=1:numel(failure_markers)
     tf = any(strfind(report_text, failure_markers{f}));
     if tf
@@ -222,6 +236,9 @@ if fid == -1
 end
 cleanup_obj = onCleanup(@() fclose(fid)); 
 
+% Tab-separated output keeps columns visually aligned for all block numbers.
+fprintf(fid, 'output_folder\tbehavior_file\tmessage\n');
+
 for i = 1:numel(synchronization_report)
     entry = synchronization_report(i);
     output_folder = entry.block_folder;
@@ -247,6 +264,6 @@ for i = 1:numel(synchronization_report)
     message_text = strrep(message_text, sprintf('\r'), ' ');
     message_text = strrep(message_text, sprintf('\n'), ' ');
     
-    fprintf(fid, '%s - %s - %s\n', output_folder, behavior_file_name, message_text);
+    fprintf(fid, '%s\t%s\t%s\n', output_folder, behavior_file_name, message_text);
 end
 end
